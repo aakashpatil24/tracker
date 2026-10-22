@@ -8,32 +8,34 @@ export const DEFAULT_DATA: AppData = {
   deletedHolidayIds: [],
   selectedRegion: 'south',
   cycleAnchorDate: '2026-07-20',
+  annualCarryForwardSeed: {},
   lastModified: new Date().toISOString(),
 };
 
-export function loadFromStorage(): AppData {
+export const loadFromStorage = (): AppData => {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULT_DATA };
     const p = JSON.parse(raw) as Partial<AppData>;
     return {
       ...DEFAULT_DATA, ...p,
-      entries:           p.entries           ?? {},
-      customHolidays:    p.customHolidays    ?? [],
+      entries: p.entries ?? {},
+      customHolidays: p.customHolidays ?? [],
       deletedHolidayIds: p.deletedHolidayIds ?? [],
+      annualCarryForwardSeed: p.annualCarryForwardSeed ?? {},
     };
   } catch {
     return { ...DEFAULT_DATA };
   }
-}
+};
 
-export function saveToStorage(data: AppData): void {
+export const saveToStorage = (data: AppData): void => {
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...data, lastModified: new Date().toISOString() }));
   } catch (e) { console.error('Storage write failed:', e); }
-}
+};
 
-export function exportToJson(data: AppData): void {
+export const exportToJson = (data: AppData): void => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = Object.assign(document.createElement('a'), {
@@ -44,13 +46,13 @@ export function exportToJson(data: AppData): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
+};
 
-export function parseImportFile(file: File): Promise<AppData> {
+export const parseImportFile = (file: File): Promise<AppData> => {
   return new Promise((res, rej) => {
     const reader = new FileReader();
     reader.onload  = e => { try { res(JSON.parse(e.target?.result as string)); } catch { rej(new Error('Invalid JSON')); } };
     reader.onerror = () => rej(new Error('Cannot read file'));
     reader.readAsText(file);
   });
-}
+};

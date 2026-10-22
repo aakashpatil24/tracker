@@ -37,5 +37,6 @@ export interface AppData {
   deletedHolidayIds: string[];
   selectedRegion: Region;
   cycleAnchorDate: string; // YYYY-MM-DD  →  default: 2026-07-20
+  annualCarryForwardSeed: Record<string, number>;
   lastModified: string;
 }

@@ -65,14 +65,14 @@ export function generateCycles(anchorDate: string): Cycle[] {
     start = addDays(start, CYCLE_LENGTH);
   }
   return cycles;
-}
+};
 
-export function getCurrentCycle(cycles: Cycle[]): Cycle | undefined {
+export const getCurrentCycle = (cycles: Cycle[]): Cycle | undefined => {
   const today = todayStr();
   return cycles.find(c => c.startDate <= today && c.endDate >= today);
-}
+};
 
-export function getDaysInCycle(cycle: Cycle): string[] {
+export const getDaysInCycle = (cycle: Cycle): string[] => {
   const days: string[] = [];
   let cur = parseDate(cycle.startDate);
   for (let i = 0; i < CYCLE_LENGTH; i++) {
@@ -80,10 +80,10 @@ export function getDaysInCycle(cycle: Cycle): string[] {
     cur = addDays(cur, 1);
   }
   return days;
-}
+};
 
 // Returns weeks as Mon-indexed rows; null = padding outside cycle
-export function getCalendarWeeks(cycle: Cycle): (string | null)[][] {
+export const getCalendarWeeks = (cycle: Cycle): (string | null)[][] => {
   const days = getDaysInCycle(cycle);
   const startDow = (parseDate(cycle.startDate).getDay() + 6) % 7; // Mon=0
 
@@ -102,13 +102,13 @@ export function getCalendarWeeks(cycle: Cycle): (string | null)[][] {
     weeks.push(row);
   }
   return weeks;
-}
+};
 
-export function getAvailableYears(cycles: Cycle[]): number[] {
+export const getAvailableYears = (cycles: Cycle[]): number[] => {
   const s = new Set(cycles.map(c => parseDate(c.startDate).getFullYear()));
   return Array.from(s).sort((a, b) => a - b);
-}
+};
 
-export function getCyclesForYear(cycles: Cycle[], year: number): Cycle[] {
+export const getCyclesForYear = (cycles: Cycle[], year: number): Cycle[] => {
   return cycles.filter(c => parseDate(c.startDate).getFullYear() === year);
-}
+};
