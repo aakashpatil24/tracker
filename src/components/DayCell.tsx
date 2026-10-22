@@ -69,6 +69,25 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
   const hasDetails = (entry && entry.status !== "none") || !!holiday || hasNote;
   const showPopover = hovered && hasDetails;
 
+  // Column index in the Mon–Sun grid (0 = Mon … 6 = Sun) to keep the hover
+  // popover inside the viewport on edge columns.
+  const col = (parseDate(dateStr).getDay() + 6) % 7;
+  const align: "left" | "right" | "center" =
+    col <= 1 ? "left" : col >= 5 ? "right" : "center";
+
+  const popoverPos =
+    align === "left"
+      ? "left-0"
+      : align === "right"
+        ? "right-0"
+        : "left-1/2 -translate-x-1/2";
+  const arrowPos =
+    align === "left"
+      ? "left-5"
+      : align === "right"
+        ? "right-5"
+        : "left-1/2 -translate-x-1/2";
+
   return (
     <div
       className="relative"
@@ -121,9 +140,9 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
       {/* Hover detail popover */}
       {showPopover && (
         <div
-          className="absolute z-30 left-1/2 -translate-x-1/2 bottom-full mb-2 w-52
+          className={`absolute z-30 ${popoverPos} bottom-full mb-2 w-52
                      bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-3 text-left
-                     pointer-events-none animate-fade-in"
+                     pointer-events-none animate-fade-in`}
         >
           <p className="text-[11px] font-semibold text-zinc-300 mb-1.5">
             {formatDayLabel(dateStr)}
@@ -164,14 +183,14 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
 
           {/* Arrow */}
           <span
-            className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2.5 h-2.5
-                       bg-zinc-900 border-r border-b border-zinc-700 rotate-45"
+            className={`absolute top-full ${arrowPos} -mt-px w-2.5 h-2.5
+                       bg-zinc-900 border-r border-b border-zinc-700 rotate-45`}
           />
         </div>
       )}
     </div>
   );
-};
+};;
 
 export default memo(DayCell);
 
