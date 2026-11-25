@@ -96,6 +96,14 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
     >
       <button
         onClick={() => onSelect(dateStr)}
+        aria-label={[
+          formatDayLabel(dateStr),
+          entry && entry.status !== "none" ? STATUS_LABELS[entry.status] : null,
+          holiday ? `Public holiday: ${holiday.name}` : null,
+          hasNote ? "has note" : null,
+        ]
+          .filter(Boolean)
+          .join(", ")}
         title={weekend ? "Weekend — log overtime or add a note" : undefined}
         className={[
           "relative w-full min-h-15.5 rounded-xl border flex flex-col items-center",
@@ -190,7 +198,7 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
       )}
     </div>
   );
-};;
+};
 
 export default memo(DayCell);
 

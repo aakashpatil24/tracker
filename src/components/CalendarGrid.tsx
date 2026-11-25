@@ -1,6 +1,14 @@
-import { useCallback, useState } from "react";
-import { useAttendance } from "../context/AttendanceContext";
-import { getCalendarWeeks, getMonthYearLabel } from "../utils/dateUtils";
+import { useCallback, useMemo, useState } from "react";
+import { useAttendance } from "../context/attendanceCore";
+import {
+  formatDate,
+  getCalendarWeeks,
+  getMonthShort,
+  getMonthYearLabel,
+  parseDate,
+  todayStr,
+} from "../utils/dateUtils";
+import type { Cycle } from "../types";
 import DayCell from "./DayCell";
 import DayModal from "./DayModal";
 
@@ -16,23 +24,56 @@ const LEGEND = [
 ];
 
 const CalendarGrid = () => {
-  const { selectedCycle, data, getHolidaysForCycle } = useAttendance();
+  const { selectedCycle, data, getHolidaysForCycle, mode } = useAttendance();
   const [modalDate, setModalDate] = useState<string | null>(null);
   const openDay = useCallback((d: string) => setModalDate(d), []);
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null);
 
-  const weeks = getCalendarWeeks(selectedCycle);
-  const holidays = getHolidaysForCycle(selectedCycle);
+  // Quarter mode: split the quarter into its calendar months
+  const monthViews = useMemo<Cycle[]>(() => {
+    if (mode !== "quarter") return [];
+    const start = parseDate(selectedCycle.startDate);
+    return [0, 1, 2].map((i) => {
+      const s = formatDate(
+        new Date(start.getFullYear(), start.getMonth() + i, 1),
+      );
+      const e = formatDate(
+        new Date(start.getFullYear(), start.getMonth() + i + 1, 0),
+      );
+      return {
+        id: s,
+        startDate: s,
+        endDate: e,
+        label: getMonthYearLabel(s),
+        name: getMonthShort(s),
+      };
+    });
+  }, [mode, selectedCycle]);
+
+  // Selected month: the user's pick if it belongs to this quarter, else today's month, else the first
+  const activeMonth =
+    monthViews.find((m) => m.id === pickedMonth) ??
+    monthViews.find(
+      (m) => m.startDate <= todayStr() && m.endDate >= todayStr(),
+    ) ??
+    monthViews[0];
+  const view: Cycle = activeMonth ?? selectedCycle;
+
+  const weeks = getCalendarWeeks(view);
+  const holidays = getHolidaysForCycle(view);
   const holidayMap = new Map(holidays.map((h) => [h.date, h]));
 
-  // Month labels shown in header
-  const months = [
-    ...new Set(
-      weeks
-        .flat()
-        .filter(Boolean)
-        .map((d) => getMonthYearLabel(d!)),
-    ),
-  ];
+  // Month labels shown in the header (cycle mode only; quarter mode uses month tabs)
+  const months = activeMonth
+    ? []
+    : [
+        ...new Set(
+          weeks
+            .flat()
+            .filter(Boolean)
+            .map((d) => getMonthYearLabel(d!)),
+        ),
+      ];
 
   return (
     <section className="bg-zinc-900/70 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -40,11 +81,31 @@ const CalendarGrid = () => {
       <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-zinc-800">
         <div>
           <h2 className="font-semibold text-zinc-100">Attendance Calendar</h2>
-          <p className="text-xs text-zinc-500 mt-0.5">{selectedCycle.label}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            {activeMonth ? activeMonth.label : selectedCycle.label}
+          </p>
         </div>
-        <p className="text-sm text-zinc-400 font-medium hidden sm:block">
-          {months.join(" · ")}
-        </p>
+        {activeMonth ? (
+          <div className="flex items-center rounded-lg bg-zinc-800 p-0.5 text-xs font-medium">
+            {monthViews.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setPickedMonth(m.id)}
+                className={`px-2.5 py-1 rounded-md transition-colors ${
+                  m.id === activeMonth.id
+                    ? "bg-amber-400 text-zinc-900"
+                    : "text-zinc-400 hover:text-zinc-100"
+                }`}
+              >
+                {m.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400 font-medium hidden sm:block">
+            {months.join(" · ")}
+          </p>
+        )}
       </div>
 
       <div className="p-3 sm:p-5">

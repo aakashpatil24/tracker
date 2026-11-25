@@ -4,7 +4,7 @@ import {
   ANNUAL_LEAVE_QUOTA,
   SICK_LEAVE_QUOTA,
   CARRY_FORWARD_MAX_BALANCE,
-} from "../context/AttendanceContext";
+} from "../context/attendanceCore";
 import { Palm, Thermometer, Pencil } from "./Icons";
 
 const LeaveSummary = () => {

@@ -1,3 +1,5 @@
+export type AppMode = 'cycle' | 'quarter';
+
 export type DayStatus = 'wfo' | 'wfh' | 'sick' | 'annual' | 'none';
 
 export type Region = 'west' | 'east' | 'north' | 'south' | 'south_chennai';
@@ -29,6 +31,7 @@ export interface Cycle {
   startDate: string;
   endDate: string;
   label: string;
+  name?: string; // short name, e.g. "Q3-26" or "Jul"
 }
 
 export interface AppData {
@@ -38,5 +41,7 @@ export interface AppData {
   selectedRegion: Region;
   cycleAnchorDate: string; // YYYY-MM-DD  →  default: 2026-07-20
   annualCarryForwardSeed: Record<string, number>;
+  expectedOverride?: Record<string, number>; // quarter mode: manual expected office days per quarter id
+  exportedMode?: AppMode; // set on export so imports can be checked against the active mode
   lastModified: string;
 }

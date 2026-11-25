@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw } from "./Icons";
-import { useAttendance } from "../context/AttendanceContext";
+import { useAttendance } from "../context/attendanceCore";
 import {
   getAvailableYears,
   getCyclesForYear,

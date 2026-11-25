@@ -1,12 +1,14 @@
-import { useAttendance } from "../context/AttendanceContext";
+import { useAttendance } from "../context/attendanceCore";
 import { REGION_LABELS, type Region } from "../types";
 import CycleSelector from "../components/CycleSelector";
 import StatsBar from "../components/StatsBar";
 import LeaveSummary from "../components/LeaveSummary";
 import CalendarGrid from "../components/CalendarGrid";
+import QuarterStats from "../components/QuarterStats";
 
 const DashboardPage = () => {
-  const { data, setRegion } = useAttendance();
+  const { data, setRegion, mode } = useAttendance();
+  const isQuarter = mode === "quarter";
 
   return (
     <div className="space-y-4">
@@ -36,24 +38,42 @@ const DashboardPage = () => {
       </div>
 
       <CycleSelector />
-      <StatsBar />
+      {isQuarter ? <QuarterStats /> : <StatsBar />}
       <LeaveSummary />
       <CalendarGrid />
 
       {/* Formula card */}
-      <div className="bg-amber-400/5 border border-amber-400/20 rounded-2xl px-4 sm:px-5 py-4 text-sm text-amber-200/90">
-        <p className="font-semibold mb-1 text-amber-300">
-          How target is calculated
-        </p>
-        <p className="text-amber-200/70">
-          <strong className="text-amber-200">
-            Target WFO Days = ⌈50% × (Working Days − Leaves)⌉
-          </strong>
-          <br />
-          Working Days = 20 standard days per cycle − Public Holidays for your
-          region
-        </p>
-      </div>
+      {isQuarter ? (
+        <div className="bg-amber-400/5 border border-amber-400/20 rounded-2xl px-4 sm:px-5 py-4 text-sm text-amber-200/90">
+          <p className="font-semibold mb-1 text-amber-300">
+            How compliance is calculated
+          </p>
+          <p className="text-amber-200/70">
+            <strong className="text-amber-200">
+              Compliance % = Actual office days ÷ Expected office days
+            </strong>
+            <br />
+            Expected defaults to 50% of all weekdays (rounded up; public
+            holidays reduce Working Days but not the target); edit it above to
+            match your official figure. Leaves are tracked but not deducted.
+            Minimum required: 80%.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-amber-400/5 border border-amber-400/20 rounded-2xl px-4 sm:px-5 py-4 text-sm text-amber-200/90">
+          <p className="font-semibold mb-1 text-amber-300">
+            How target is calculated
+          </p>
+          <p className="text-amber-200/70">
+            <strong className="text-amber-200">
+              Target WFO Days = ⌈50% × (Working Days − Leaves)⌉
+            </strong>
+            <br />
+            Working Days = 20 standard days per cycle − Public Holidays for your
+            region
+          </p>
+        </div>
+      )}
     </div>
   );
 };

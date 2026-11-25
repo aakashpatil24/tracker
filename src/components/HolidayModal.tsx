@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "./Icons";
-import { useAttendance } from "../context/AttendanceContext";
+import { useAttendance } from "../context/attendanceCore";
 import { type PublicHoliday, type Region, REGION_LABELS } from "../types";
 
 interface Props {
@@ -54,6 +54,9 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={holiday ? "Edit Holiday" : "Add Holiday"}
         className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >

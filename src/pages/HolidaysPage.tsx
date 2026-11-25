@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pencil, Plus, Trash2, Umbrella } from "../components/Icons";
-import { useAttendance } from "../context/AttendanceContext";
+import { useAttendance } from "../context/attendanceCore";
 import { type PublicHoliday, type Region, REGION_LABELS } from "../types";
 import { formatDisplayShort } from "../utils/dateUtils";
 import HolidayModal from "../components/HolidayModal";

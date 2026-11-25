@@ -1,117 +1,90 @@
 import React, {
-  createContext, useCallback, useContext,
-  useEffect, useMemo, useState,
-} from 'react';
-import type { AppData, Cycle, DayStatus, PublicHoliday, Region } from '../types';
-import { DEFAULT_HOLIDAYS } from '../utils/holidayData';
-import { exportToJson, loadFromStorage, parseImportFile, saveToStorage } from '../utils/storage';
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type {
+  AppData,
+  AppMode,
+  Cycle,
+  DayStatus,
+  PublicHoliday,
+  Region,
+} from "../types";
+import {
+  Ctx,
+  ANNUAL_LEAVE_QUOTA,
+  SICK_LEAVE_QUOTA,
+  CARRY_FORWARD_YEARLY_CAP,
+  CARRY_FORWARD_MAX_BALANCE,
+  type AttendanceCtxValue,
+  type CycleStats,
+  type LeaveSummaryResult,
+  type YearLeaveStats,
+} from "./attendanceCore";
+import { DEFAULT_HOLIDAYS } from "../utils/holidayData";
+import {
+  exportToJson,
+  loadFromStorage,
+  parseImportFile,
+  QUARTER_KEY,
+  saveToStorage,
+} from "../utils/storage";
 import {
   generateCycles,
+  generateQuarters,
   getCurrentCycle,
   getDaysInCycle,
   isWeekend,
   todayStr,
 } from "../utils/dateUtils";
 
-// ── Stats shape ──────────────────────────────────────────────────────────────
-export interface CycleStats {
-  workingDays: number; // 20 (for 28-day cycle) minus holidays
-  wfoDays: number;
-  wfhDays: number;
-  sickDays: number;
-  annualDays: number;
-  totalLeaves: number;
-  holidayCount: number;
-  effectiveWorkDays: number; // workingDays - leaves
-  targetDays: number; // ⌈effectiveWorkDays × 0.5⌉
-  attendedDays: number; // wfo
-}
-
-// ── Context interface ────────────────────────────────────────────────────────
-interface AttendanceCtxValue {
-  data: AppData;
-  cycles: Cycle[];
-  currentCycle: Cycle | undefined;
-  selectedCycle: Cycle;
-  setSelectedCycle: (c: Cycle) => void;
-
-  setDayEntry: (date: string, status: DayStatus, note?: string) => void;
-  clearDayEntry: (date: string) => void;
-
-  getEffectiveHolidays: () => PublicHoliday[];
-  getAllHolidaysAdmin: () => PublicHoliday[];
-  getHolidaysForCycle: (cycle: Cycle) => PublicHoliday[];
-
-  addHoliday: (h: Omit<PublicHoliday, "id">) => void;
-  updateHoliday: (h: PublicHoliday) => void;
-  removeHoliday: (id: string) => void;
-
-  setRegion: (r: Region) => void;
-  getCycleStats: (cycle: Cycle) => CycleStats;
-  getLeaveSummary: () => LeaveSummaryResult;
-  setCarryForwardSeed: (year: string, value: number) => void;
-
-  exportData: () => void;
-  importData: (file: File) => Promise<void>;
-}
-
-// ── Leave policy constants ───────────────────────────────────────────────────
-export const SICK_LEAVE_QUOTA = 6; // sick leaves granted per calendar year
-export const ANNUAL_LEAVE_QUOTA = 24; // fresh annual leaves granted per calendar year
-export const CARRY_FORWARD_YEARLY_CAP = 12; // max unused annual leaves eligible to carry forward each year
-export const CARRY_FORWARD_MAX_BALANCE = 45; // max accumulated carry-forward balance
-
-// ── Leave summary (all-time, from stored data) ──────────────────────────────
-export interface YearLeaveStats {
-  year: string;
-  sickUsed: number; // total consumed (taken + applied)
-  sickTaken: number; // date <= today
-  sickApplied: number; // future dates
-  sickRemaining: number;
-  annualUsed: number; // total consumed (taken + applied)
-  annualTaken: number; // date <= today
-  annualApplied: number; // future dates
-  broughtForward: number; // carried into this year (from previous year, or manual seed)
-  totalAvailable: number; // ANNUAL_LEAVE_QUOTA + broughtForward
-  annualRemaining: number; // max(0, totalAvailable - annualUsed)
-  carryForwardEligibleThisYear: number; // unused fresh quota eligible to carry, capped at CARRY_FORWARD_YEARLY_CAP
-  carryForwardToNextYear: number; // total balance that will carry into next year, capped at CARRY_FORWARD_MAX_BALANCE
-  isSeeded: boolean; // true if broughtForward came from a manual seed rather than being auto-computed
-}
-
-export interface LeaveSummaryResult {
-  currentYear: string;
-  years: Record<string, YearLeaveStats>;
-}
-
-const Ctx = createContext<AttendanceCtxValue | null>(null);
-
 // ── Provider ────────────────────────────────────────────
 export const AttendanceProvider = ({
   children,
+  mode = "cycle",
 }: {
   children: React.ReactNode;
+  mode?: AppMode;
 }) => {
-  const [data, setData] = useState<AppData>(() => loadFromStorage());
+  const isQuarter = mode === "quarter";
+  const storageKey = isQuarter ? QUARTER_KEY : undefined;
+  const [data, setData] = useState<AppData>(() => loadFromStorage(storageKey));
 
   const cycles = useMemo(
-    () => generateCycles(data.cycleAnchorDate),
-    [data.cycleAnchorDate],
+    () =>
+      isQuarter ? generateQuarters() : generateCycles(data.cycleAnchorDate),
+    [isQuarter, data.cycleAnchorDate],
   );
   const currentCycle = useMemo(() => getCurrentCycle(cycles), [cycles]);
 
   // Initialise selectedCycle to today's cycle (lazy — runs once)
-  const [selectedCycle, setSelectedCycle] = useState<Cycle>(() => {
-    const d = loadFromStorage();
-    const c = generateCycles(d.cycleAnchorDate);
-    return getCurrentCycle(c) ?? c[30];
-  });
+  const [selectedCycle, setSelectedCycle] = useState<Cycle>(
+    () => getCurrentCycle(cycles) ?? cycles[Math.floor(cycles.length / 2)],
+  );
 
   // Persist on every change (debounced so rapid edits / note typing don't thrash localStorage)
-  useEffect(() => {
-    const id = setTimeout(() => saveToStorage(data), 300);
-    return () => clearTimeout(id);
+  const latest = useRef(data);
+  useLayoutEffect(() => {
+    latest.current = data;
   }, [data]);
+  useEffect(() => {
+    const id = setTimeout(() => saveToStorage(data, storageKey), 300);
+    return () => clearTimeout(id);
+  }, [data, storageKey]);
+
+  // Flush any pending edit immediately when the provider unmounts (mode switch) or the tab closes
+  useEffect(() => {
+    const flush = () => saveToStorage(latest.current, storageKey);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      flush();
+    };
+  }, [storageKey]);
 
   // ── Day entries ────────────────────────────────────────────────────────────
   const setDayEntry = useCallback(
@@ -237,8 +210,17 @@ export const AttendanceProvider = ({
         else if (e.status === "annual") annual++;
       }
       const leaves = sick + annual;
-      const effective = Math.max(0, workDays.length - leaves);
-      const target = Math.ceil(effective * 0.5);
+      // Quarter mode: leaves are tracked but not deducted, and expected is 50% of
+      // ALL weekdays (holidays reduce the working-days figure but not the target)
+      const weekdayCount = days.filter((d) => !isWeekend(d)).length;
+      const effective = isQuarter
+        ? weekdayCount
+        : Math.max(0, workDays.length - leaves);
+      const override = data.expectedOverride?.[cycle.id];
+      const target =
+        isQuarter && override !== undefined
+          ? override
+          : Math.ceil(effective * 0.5);
 
       return {
         workingDays: workDays.length,
@@ -253,15 +235,34 @@ export const AttendanceProvider = ({
         attendedDays: wfo,
       };
     },
-    [data.entries, getHolidaysForCycle],
+    [data.entries, data.expectedOverride, getHolidaysForCycle, isQuarter],
+  );
+
+  const setExpectedOverride = useCallback(
+    (cycleId: string, value: number | null) =>
+      setData((p) => {
+        const next = { ...(p.expectedOverride ?? {}) };
+        if (value === null) delete next[cycleId];
+        else next[cycleId] = Math.max(0, Math.floor(value));
+        return { ...p, expectedOverride: next };
+      }),
+    [],
   );
 
   // ── Import / Export ────────────────────────────────────────────────────────
-  const exportData = useCallback(() => exportToJson(data), [data]);
-  const importData = useCallback(async (file: File) => {
-    const imported = await parseImportFile(file);
-    setData(imported);
-  }, []);
+  const exportData = useCallback(() => exportToJson(data, mode), [data, mode]);
+  const importData = useCallback(
+    async (file: File) => {
+      const imported = await parseImportFile(file);
+      if (imported.exportedMode && imported.exportedMode !== mode) {
+        throw new Error(
+          `This backup was exported from ${imported.exportedMode} mode. Switch to ${imported.exportedMode} mode to import it.`,
+        );
+      }
+      setData(imported);
+    },
+    [mode],
+  );
 
   // ── Leave summary (all-time, from stored data) ─────────────────────────────
   const getLeaveSummary = useCallback((): LeaveSummaryResult => {
@@ -380,6 +381,8 @@ export const AttendanceProvider = ({
   // ── Memoised value (prevents unnecessary consumer re-renders) ─────────────
   const value = useMemo<AttendanceCtxValue>(
     () => ({
+      mode,
+      setExpectedOverride,
       data,
       cycles,
       currentCycle,
@@ -401,6 +404,8 @@ export const AttendanceProvider = ({
       importData,
     }),
     [
+      mode,
+      setExpectedOverride,
       data,
       cycles,
       currentCycle,
@@ -423,11 +428,4 @@ export const AttendanceProvider = ({
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-};
-
-// eslint-disable-next-line react-refresh/only-export-components
-export const useAttendance = (): AttendanceCtxValue => {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useAttendance must be inside AttendanceProvider');
-  return ctx;
 };

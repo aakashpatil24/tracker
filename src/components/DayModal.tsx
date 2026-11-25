@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Building, Home, Thermometer, Palm, Umbrella } from "./Icons";
-import { useAttendance } from "../context/AttendanceContext";
+import { useAttendance } from "../context/attendanceCore";
 import type { DayStatus } from "../types";
 import { formatDayLabel, isWeekend } from "../utils/dateUtils";
 import type { ReactNode } from "react";
@@ -103,12 +103,25 @@ const DayModal = ({ dateStr, onClose }: Props) => {
     onClose();
   };
 
+  // WFO / WFH: one click saves (keeping any note) and closes the modal
+  const handleSelect = (value: DayStatus) => {
+    if (value === "wfo" || value === "wfh") {
+      setDayEntry(dateStr, value, note.trim() || undefined);
+      onClose();
+      return;
+    }
+    setSelected(value);
+  };
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={formatDayLabel(dateStr)}
         className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
@@ -143,7 +156,7 @@ const DayModal = ({ dateStr, onClose }: Props) => {
             (opt) => (
               <button
                 key={opt.value}
-                onClick={() => setSelected(opt.value)}
+                onClick={() => handleSelect(opt.value)}
                 className={[
                   "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all",
                   selected === opt.value

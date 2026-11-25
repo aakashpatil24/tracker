@@ -1,4 +1,4 @@
-import { useAttendance, type CycleStats } from "../context/AttendanceContext";
+import { useAttendance, type CycleStats } from "../context/attendanceCore";
 import { Building, Home, Palm, Briefcase, Check } from "./Icons";
 
 const StatsBar = () => {
