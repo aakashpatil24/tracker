@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 interface IconProps {
   size?: number;
   className?: string;
@@ -153,6 +155,81 @@ export const ChevronRight = ({ size = 20, className = "" }: IconProps) => (
   >
     <polyline points="9 18 15 12 9 6" />
   </svg>
+);
+
+const Svg = ({
+  size = 20,
+  className = "",
+  children,
+}: IconProps & { children: ReactNode }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    {children}
+  </svg>
+);
+
+export const ChevronsLeft = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m11 17-5-5 5-5" />
+    <path d="m18 17-5-5 5-5" />
+  </Svg>
+);
+
+export const ChevronsRight = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m6 17 5-5-5-5" />
+    <path d="m13 17 5-5-5-5" />
+  </Svg>
+);
+
+export const ListBullet = (p: IconProps) => (
+  <Svg {...p}>
+    <line x1="8" x2="21" y1="6" y2="6" />
+    <line x1="8" x2="21" y1="12" y2="12" />
+    <line x1="8" x2="21" y1="18" y2="18" />
+    <line x1="3" x2="3.01" y1="6" y2="6" />
+    <line x1="3" x2="3.01" y1="12" y2="12" />
+    <line x1="3" x2="3.01" y1="18" y2="18" />
+  </Svg>
+);
+
+export const ListOrdered = (p: IconProps) => (
+  <Svg {...p}>
+    <line x1="10" x2="21" y1="6" y2="6" />
+    <line x1="10" x2="21" y1="12" y2="12" />
+    <line x1="10" x2="21" y1="18" y2="18" />
+    <path d="M4 6h1v4" />
+    <path d="M4 10h2" />
+    <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+  </Svg>
+);
+
+export const IndentIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <polyline points="3 8 7 12 3 16" />
+    <line x1="21" x2="11" y1="12" y2="12" />
+    <line x1="21" x2="11" y1="6" y2="6" />
+    <line x1="21" x2="11" y1="18" y2="18" />
+  </Svg>
+);
+
+export const OutdentIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <polyline points="7 8 3 12 7 16" />
+    <line x1="21" x2="11" y1="12" y2="12" />
+    <line x1="21" x2="11" y1="6" y2="6" />
+    <line x1="21" x2="11" y1="18" y2="18" />
+  </Svg>
 );
 
 export const X = ({ size = 20, className = "" }: IconProps) => (

@@ -61,6 +61,8 @@ const CycleSelector = () => {
           <button
             onClick={() => canPrev && setSelectedCycle(cycles[globalIdx - 1])}
             disabled={!canPrev}
+            aria-label="Previous"
+            title="Previous"
             className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
           >
             <ChevronLeft size={16} />
@@ -85,6 +87,8 @@ const CycleSelector = () => {
           <button
             onClick={() => canNext && setSelectedCycle(cycles[globalIdx + 1])}
             disabled={!canNext}
+            aria-label="Next"
+            title="Next"
             className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 disabled:opacity-30 transition-colors"
           >
             <ChevronRight size={16} />

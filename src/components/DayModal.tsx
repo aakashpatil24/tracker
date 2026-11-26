@@ -4,6 +4,7 @@ import { X, Building, Home, Thermometer, Palm, Umbrella } from "./Icons";
 import { useAttendance } from "../context/attendanceCore";
 import type { DayStatus } from "../types";
 import { formatDayLabel, isWeekend } from "../utils/dateUtils";
+import NoteEditor from "./NoteEditor";
 import type { ReactNode } from "react";
 
 interface Props {
@@ -191,12 +192,12 @@ const DayModal = ({ dateStr, onClose }: Props) => {
               Work Log / Note{" "}
               <span className="font-normal text-zinc-600">(optional)</span>
             </label>
-            <textarea
+            <NoteEditor
               value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
+              onChange={setNote}
+              rows={4}
+              ariaLabel="Work log / note"
               placeholder="Log what you worked on, meetings, tasks, or any note…"
-              className="w-full bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder:text-zinc-600 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-400/50"
             />
           </div>
         </div>

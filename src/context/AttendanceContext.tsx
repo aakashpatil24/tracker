@@ -106,6 +106,18 @@ export const AttendanceProvider = ({
     [],
   );
 
+  const setDayNote = useCallback(
+    (date: string, note?: string) =>
+      setData((p) => {
+        const status = p.entries[date]?.status ?? "none";
+        const entries = { ...p.entries };
+        if (!note && status === "none") delete entries[date];
+        else entries[date] = { date, status, note };
+        return { ...p, entries };
+      }),
+    [],
+  );
+
   // ── Holidays ───────────────────────────────────────────────────────────────
   const getEffectiveHolidays = useCallback((): PublicHoliday[] => {
     const { deletedHolidayIds, customHolidays, selectedRegion } = data;
@@ -390,6 +402,7 @@ export const AttendanceProvider = ({
       setSelectedCycle,
       setDayEntry,
       clearDayEntry,
+      setDayNote,
       getEffectiveHolidays,
       getAllHolidaysAdmin,
       getHolidaysForCycle,
@@ -412,6 +425,7 @@ export const AttendanceProvider = ({
       selectedCycle,
       setDayEntry,
       clearDayEntry,
+      setDayNote,
       getEffectiveHolidays,
       getAllHolidaysAdmin,
       getHolidaysForCycle,

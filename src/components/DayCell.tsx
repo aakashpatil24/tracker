@@ -13,7 +13,9 @@ interface Props {
   dateStr: string;
   entry?: DayEntry;
   holiday?: PublicHoliday;
-  onSelect: (dateStr: string) => void;
+  selected?: boolean;
+  onSelect: (dateStr: string, hasNote: boolean) => void;
+  onEdit: (dateStr: string) => void;
 }
 
 type StyleKey = DayStatus | "holiday" | "weekend";
@@ -53,7 +55,14 @@ const DOT_COLORS: Record<StyleKey, string> = {
   weekend: "bg-zinc-600",
 };
 
-const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
+const DayCell = ({
+  dateStr,
+  entry,
+  holiday,
+  selected = false,
+  onSelect,
+  onEdit,
+}: Props) => {
   const today = todayStr();
   const isToday = dateStr === today;
   const weekend = isWeekend(dateStr);
@@ -95,7 +104,12 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
       onMouseLeave={() => setHovered(false)}
     >
       <button
-        onClick={() => onSelect(dateStr)}
+        onClick={() => onSelect(dateStr, hasNote)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onEdit(dateStr);
+        }}
+        aria-pressed={selected}
         aria-label={[
           formatDayLabel(dateStr),
           entry && entry.status !== "none" ? STATUS_LABELS[entry.status] : null,
@@ -112,7 +126,9 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
           "hover:border-zinc-600 hover:-translate-y-0.5 active:scale-95 cursor-pointer",
           isToday
             ? "ring-2 ring-amber-400 ring-offset-2 ring-offset-[#0a0a0b]"
-            : "",
+            : selected
+              ? "ring-2 ring-zinc-300/70 ring-offset-2 ring-offset-[#0a0a0b]"
+              : "",
         ].join(" ")}
       >
         {/* Day number */}

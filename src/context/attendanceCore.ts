@@ -56,6 +56,8 @@ export interface AttendanceCtxValue {
 
   setDayEntry: (date: string, status: DayStatus, note?: string) => void;
   clearDayEntry: (date: string) => void;
+  /** Update only the note of a day, keeping its status (removes the entry if both are empty). */
+  setDayNote: (date: string, note?: string) => void;
 
   getEffectiveHolidays: () => PublicHoliday[];
   getAllHolidaysAdmin: () => PublicHoliday[];
