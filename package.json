@@ -4,9 +4,6 @@
   "version": "1.0.0",
   "description": "Office attendance & leave tracker (28-day cycle and quarterly compliance)",
   "type": "module",
-  "engines": {
-    "node": ">=20.19"
-  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
