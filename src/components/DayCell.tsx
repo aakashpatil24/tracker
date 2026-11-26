@@ -128,7 +128,7 @@ const DayCell = ({ dateStr, entry, holiday, onSelect }: Props) => {
         )}
 
         {/* Holiday short name (only when no entry) */}
-        {holiday && !entry && (
+        {holiday && !(entry && entry.status !== "none") && (
           <span className="text-[10px] leading-tight text-center px-1 font-medium line-clamp-2">
             {holiday.name.split(" ").slice(0, 2).join(" ")}
           </span>

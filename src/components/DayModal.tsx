@@ -96,14 +96,15 @@ const DayModal = ({ dateStr, onClose }: Props) => {
   }, [onClose]);
 
   const handleSave = () => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    selected === "none"
-      ? clearDayEntry(dateStr)
-      : setDayEntry(dateStr, selected, note.trim() || undefined);
+    const trimmed = note.trim();
+    if (selected === "none" && !trimmed) clearDayEntry(dateStr);
+    // A note alone is a valid entry: status "none" is ignored by all stats
+    else setDayEntry(dateStr, selected, trimmed || undefined);
     onClose();
   };
 
-  // WFO / WFH: one click saves (keeping any note) and closes the modal
+  // WFO / WFH: one click saves (keeping any note) and closes the modal.
+  // Clear Entry only removes the status; the note stays until the user edits/empties it.
   const handleSelect = (value: DayStatus) => {
     if (value === "wfo" || value === "wfh") {
       setDayEntry(dateStr, value, note.trim() || undefined);
