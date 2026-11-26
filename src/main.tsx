@@ -1,5 +1,16 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import ErrorBoundary from "./components/ErrorBoundary.tsx";
+import ToastProvider from "./components/ToastProvider.tsx";
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </ErrorBoundary>
+  </StrictMode>,
+);

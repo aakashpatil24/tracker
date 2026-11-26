@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Building, Home, Thermometer, Palm, Umbrella } from "./Icons";
 import { useAttendance } from "../context/attendanceCore";
+import { useDialog } from "../hooks/useDialog";
 import type { DayStatus } from "../types";
 import { formatDayLabel, isWeekend } from "../utils/dateUtils";
 import NoteEditor from "./NoteEditor";
@@ -89,12 +90,7 @@ const DayModal = ({ dateStr, onClose }: Props) => {
     existing?.status ?? "none",
   );
   const [note, setNote] = useState(existing?.note ?? "");
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const { ref, onKeyDown } = useDialog<HTMLDivElement>(onClose);
 
   const handleSave = () => {
     const trimmed = note.trim();
@@ -121,9 +117,12 @@ const DayModal = ({ dateStr, onClose }: Props) => {
       onClick={onClose}
     >
       <div
+        ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={formatDayLabel(dateStr)}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
         className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
@@ -146,6 +145,7 @@ const DayModal = ({ dateStr, onClose }: Props) => {
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-200 transition-colors"
           >
             <X size={18} />
@@ -158,6 +158,8 @@ const DayModal = ({ dateStr, onClose }: Props) => {
             (opt) => (
               <button
                 key={opt.value}
+                data-autofocus={selected === opt.value ? true : undefined}
+                aria-pressed={selected === opt.value}
                 onClick={() => handleSelect(opt.value)}
                 className={[
                   "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all",

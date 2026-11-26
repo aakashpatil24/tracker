@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAttendance } from "../context/attendanceCore";
 import {
   formatDate,
@@ -41,15 +41,18 @@ const CalendarGrid = () => {
 
   // Panel open: left click only selects the day (modal via right click).
   // Panel closed: day with a note → open the panel; otherwise → open the modal.
-  const selectDay = useCallback(
-    (d: string, hasNote: boolean) => {
-      setSelectedDate(d);
-      if (panelOpen) return;
-      if (hasNote) setPanelOpen(true);
-      else setModalDate(d);
-    },
-    [panelOpen],
-  );
+  // Reads panelOpen through a ref so the callback stays stable and memoised
+  // DayCells don't all re-render when the panel is toggled.
+  const panelOpenRef = useRef(panelOpen);
+  useLayoutEffect(() => {
+    panelOpenRef.current = panelOpen;
+  }, [panelOpen]);
+  const selectDay = useCallback((d: string, hasNote: boolean) => {
+    setSelectedDate(d);
+    if (panelOpenRef.current) return;
+    if (hasNote) setPanelOpen(true);
+    else setModalDate(d);
+  }, []);
 
   // Right click (or the panel's edit button): always open the modal
   const editDay = useCallback((d: string) => {

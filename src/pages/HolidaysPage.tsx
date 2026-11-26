@@ -3,23 +3,29 @@ import { Pencil, Plus, Trash2, Umbrella } from "../components/Icons";
 import { useAttendance } from "../context/attendanceCore";
 import { type PublicHoliday, type Region, REGION_LABELS } from "../types";
 import { formatDisplayShort } from "../utils/dateUtils";
+import { DEFAULT_HOLIDAYS } from "../utils/holidayData";
 import HolidayModal from "../components/HolidayModal";
+import ConfirmDialog from "../components/ConfirmDialog";
+
+// Years covered by the built-in company holiday list
+const BUILT_IN_YEARS = new Set(DEFAULT_HOLIDAYS.map((h) => h.date.slice(0, 4)));
 
 const HolidaysPage = () => {
-  const { getAllHolidaysAdmin, removeHoliday } = useAttendance();
+  const { getAllHolidaysAdmin, removeHoliday, today } = useAttendance();
   const all = getAllHolidaysAdmin();
 
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [filterYear, setFilterYear] = useState(() => Number(today.slice(0, 4)));
   const [filterRegion, setFilterRegion] = useState<Region | "all">("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PublicHoliday | undefined>();
+  const [deleteTarget, setDeleteTarget] = useState<PublicHoliday | null>(null);
 
   const availableYears = useMemo(() => {
     const s = new Set(all.map((h) => Number(h.date.slice(0, 4))));
-    const y = new Date().getFullYear();
+    const y = Number(today.slice(0, 4));
     [y - 1, y, y + 1].forEach((yr) => s.add(yr));
     return Array.from(s).sort((a, b) => a - b);
-  }, [all]);
+  }, [all, today]);
 
   const filtered = useMemo(
     () =>
@@ -39,14 +45,9 @@ const HolidaysPage = () => {
     setEditTarget(h);
     setModalOpen(true);
   };
-  const handleDelete = (id: string) => {
-    if (
-      window.confirm(
-        "Remove this holiday? You can add it back manually if needed.",
-      )
-    ) {
-      removeHoliday(id);
-    }
+  const confirmDelete = () => {
+    if (deleteTarget) removeHoliday(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   return (
@@ -113,6 +114,15 @@ const HolidaysPage = () => {
           {filtered.length} holidays
         </span>
       </div>
+
+      {/* Built-in list only covers some years: tell the user to add the rest */}
+      {!BUILT_IN_YEARS.has(String(filterYear)) && (
+        <div className="bg-amber-400/5 border border-amber-400/20 rounded-2xl px-4 py-3 text-sm text-amber-200/90">
+          No built-in company holidays for <strong>{filterYear}</strong>. Add
+          your official holiday list with “Add Holiday” so working days and
+          targets are calculated correctly.
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-zinc-900/70 rounded-2xl border border-zinc-800 overflow-hidden">
@@ -192,13 +202,15 @@ const HolidaysPage = () => {
                           onClick={() => openEdit(h)}
                           className="p-1.5 text-zinc-500 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition-colors"
                           title="Edit"
+                          aria-label={`Edit ${h.name}`}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleDelete(h.id)}
+                          onClick={() => setDeleteTarget(h)}
                           className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Delete"
+                          aria-label={`Delete ${h.name}`}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -211,6 +223,17 @@ const HolidaysPage = () => {
           </div>
         )}
       </div>
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Remove holiday?"
+          message={`“${deleteTarget.name}” on ${formatDisplayShort(deleteTarget.date)} will be removed. You can add it back manually if needed.`}
+          confirmLabel="Remove"
+          danger
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
 
       {modalOpen && (
         <HolidayModal

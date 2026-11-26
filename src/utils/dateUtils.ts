@@ -45,31 +45,36 @@ export const getMonthYearLabel = (s: string): string => {
 export const getMonthShort = (s: string): string => MONTHS[parseDate(s).getMonth()];
 
 // ── Cycle generation ──────────────────────────────────────
-export const generateCycles = (anchorDate: string): Cycle[] => {
-  const BACK = 30, FORWARD = 30;
-  const anchor = parseDate(anchorDate);
-  const cycles: Cycle[] = [];
-  let start = addDays(anchor, -(BACK * CYCLE_LENGTH));
+// Cycles aligned to the anchor, covering ~2 years before and after both the
+// anchor and today (so the app keeps working however far today drifts).
+const WINDOW_CYCLES = Math.ceil((2 * 365) / CYCLE_LENGTH);
+const DAY_MS = 86_400_000;
 
-  for (let i = 0; i <= BACK + FORWARD; i++) {
-    const end = addDays(start, CYCLE_LENGTH - 1);
+export const generateCycles = (anchorDate: string, today: string = todayStr()): Cycle[] => {
+  const anchor = parseDate(anchorDate);
+  // Math.round absorbs DST hour shifts between local midnights
+  const daysToToday = Math.round((parseDate(today).getTime() - anchor.getTime()) / DAY_MS);
+  const todayIdx = Math.floor(daysToToday / CYCLE_LENGTH);
+  const first = Math.min(0, todayIdx) - WINDOW_CYCLES;
+  const last = Math.max(0, todayIdx) + WINDOW_CYCLES;
+
+  const cycles: Cycle[] = [];
+  for (let i = first; i <= last; i++) {
+    const start = addDays(anchor, i * CYCLE_LENGTH);
     const s = formatDate(start);
-    const e = formatDate(end);
+    const e = formatDate(addDays(start, CYCLE_LENGTH - 1));
     cycles.push({
       id: s,
       startDate: s,
       endDate: e,
       label: `${formatDisplayShort(s)} to ${formatDisplayShort(e)}`,
     });
-    start = addDays(start, CYCLE_LENGTH);
   }
   return cycles;
 };
 
-export const getCurrentCycle = (cycles: Cycle[]): Cycle | undefined => {
-  const today = todayStr();
-  return cycles.find(c => c.startDate <= today && c.endDate >= today);
-};
+export const getCurrentCycle = (cycles: Cycle[], today: string = todayStr()): Cycle | undefined =>
+  cycles.find(c => c.startDate <= today && c.endDate >= today);
 
 export const getDaysInCycle = (cycle: Cycle): string[] => {
   const days: string[] = [];
@@ -82,8 +87,8 @@ export const getDaysInCycle = (cycle: Cycle): string[] => {
 };
 
 // Calendar quarters (Q1 Jan–Mar … Q4 Oct–Dec) for a window around today
-export const generateQuarters = (): Cycle[] => {
-  const thisYear = new Date().getFullYear();
+export const generateQuarters = (today: string = todayStr()): Cycle[] => {
+  const thisYear = parseDate(today).getFullYear();
   const quarters: Cycle[] = [];
   for (let y = thisYear - 2; y <= thisYear + 2; y++) {
     for (let q = 0; q < 4; q++) {

@@ -74,6 +74,13 @@ export interface AttendanceCtxValue {
 
   exportData: () => void;
   importData: (file: File) => Promise<void>;
+
+  /** True when the last write to localStorage failed (quota / disabled storage). */
+  saveFailed: boolean;
+  /** ISO timestamp of the last export in this mode, or null if never exported. */
+  lastBackup: string | null;
+  /** Today as YYYY-MM-DD; updates when the date changes while the tab is open. */
+  today: string;
 }
 
 export const Ctx = createContext<AttendanceCtxValue | null>(null);

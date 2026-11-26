@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "./Icons";
 import { useAttendance } from "../context/attendanceCore";
+import { useDialog } from "../hooks/useDialog";
 import { type PublicHoliday, type Region, REGION_LABELS } from "../types";
 
 interface Props {
@@ -30,21 +31,19 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
   const toggleRegion = (r: Region) =>
     setRegions((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const { ref, onKeyDown } = useDialog<HTMLDivElement>(onClose);
+  const nameId = useId();
+  const dateId = useId();
+  const errorId = useId();
 
   const handleSave = () => {
     if (!name.trim()) return setError("Holiday name is required");
     if (!date) return setError("Date is required");
     if (!regions.length) return setError("Select at least one region");
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    holiday
-      ? updateHoliday({ ...holiday, name: name.trim(), date, regions })
-      : addHoliday({ name: name.trim(), date, regions, isCustom: true });
+    if (holiday)
+      updateHoliday({ ...holiday, name: name.trim(), date, regions });
+    else addHoliday({ name: name.trim(), date, regions, isCustom: true });
     onClose();
   };
 
@@ -54,9 +53,12 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
       onClick={onClose}
     >
       <div
+        ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={holiday ? "Edit Holiday" : "Add Holiday"}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
         className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
@@ -67,6 +69,7 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
           </h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-200"
           >
             <X size={18} />
@@ -75,18 +78,30 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
 
         <div className="p-4 space-y-4">
           {error && (
-            <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded-lg">
+            <div
+              id={errorId}
+              role="alert"
+              className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 px-3 py-2 rounded-lg"
+            >
               {error}
             </div>
           )}
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+            <label
+              htmlFor={nameId}
+              className="block text-sm font-medium text-zinc-300 mb-1.5"
+            >
               Holiday Name *
             </label>
             <input
+              id={nameId}
+              data-autofocus
               type="text"
+              required
+              maxLength={80}
+              aria-describedby={error ? errorId : undefined}
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -99,11 +114,16 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+            <label
+              htmlFor={dateId}
+              className="block text-sm font-medium text-zinc-300 mb-1.5"
+            >
               Date *
             </label>
             <input
+              id={dateId}
               type="date"
+              required
               value={date}
               onChange={(e) => {
                 setDate(e.target.value);
@@ -114,10 +134,10 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
           </div>
 
           {/* Regions */}
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
+          <fieldset>
+            <legend className="block text-sm font-medium text-zinc-300 mb-2">
               Applicable Regions *
-            </label>
+            </legend>
             <div className="space-y-2">
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
@@ -151,7 +171,7 @@ const HolidayModal = ({ holiday, onClose }: Props) => {
                 ))}
               </div>
             </div>
-          </div>
+          </fieldset>
         </div>
 
         {/* Footer */}

@@ -16,33 +16,45 @@ import type {
 } from "../types";
 import {
   Ctx,
-  ANNUAL_LEAVE_QUOTA,
-  SICK_LEAVE_QUOTA,
-  CARRY_FORWARD_YEARLY_CAP,
   CARRY_FORWARD_MAX_BALANCE,
   type AttendanceCtxValue,
   type CycleStats,
   type LeaveSummaryResult,
-  type YearLeaveStats,
 } from "./attendanceCore";
 import { DEFAULT_HOLIDAYS } from "../utils/holidayData";
+import { computeCycleStats, computeLeaveSummary } from "../utils/stats";
 import {
   exportToJson,
+  getLastBackup,
   loadFromStorage,
   parseImportFile,
-  QUARTER_KEY,
+  parseStored,
   saveToStorage,
+  storageKeyFor,
 } from "../utils/storage";
 import {
   generateCycles,
   generateQuarters,
   getCurrentCycle,
-  getDaysInCycle,
-  isWeekend,
   todayStr,
 } from "../utils/dateUtils";
 
-// ── Provider ────────────────────────────────────────────
+// Today's date, refreshed when the tab regains focus and once a minute, so a
+// tab left open overnight rolls over to the new day / cycle.
+const useToday = (): string => {
+  const [today, setToday] = useState(todayStr);
+  useEffect(() => {
+    const check = () => setToday(todayStr()); // same string → no re-render
+    const id = setInterval(check, 60_000);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, []);
+  return today;
+};
+
 export const AttendanceProvider = ({
   children,
   mode = "cycle",
@@ -51,39 +63,79 @@ export const AttendanceProvider = ({
   mode?: AppMode;
 }) => {
   const isQuarter = mode === "quarter";
-  const storageKey = isQuarter ? QUARTER_KEY : undefined;
+  const storageKey = storageKeyFor(mode);
   const [data, setData] = useState<AppData>(() => loadFromStorage(storageKey));
+  const today = useToday();
 
   const cycles = useMemo(
     () =>
-      isQuarter ? generateQuarters() : generateCycles(data.cycleAnchorDate),
-    [isQuarter, data.cycleAnchorDate],
+      isQuarter
+        ? generateQuarters(today)
+        : generateCycles(data.cycleAnchorDate, today),
+    [isQuarter, data.cycleAnchorDate, today],
   );
-  const currentCycle = useMemo(() => getCurrentCycle(cycles), [cycles]);
+  const currentCycle = useMemo(
+    () => getCurrentCycle(cycles, today),
+    [cycles, today],
+  );
 
   // Initialise selectedCycle to today's cycle (lazy — runs once)
   const [selectedCycle, setSelectedCycle] = useState<Cycle>(
-    () => getCurrentCycle(cycles) ?? cycles[Math.floor(cycles.length / 2)],
+    () => currentCycle ?? cycles[Math.floor(cycles.length / 2)],
   );
+  // When the day rolls into a new cycle, follow it if the user was viewing the current one
+  const [prevCurrentId, setPrevCurrentId] = useState(currentCycle?.id);
+  if (prevCurrentId !== currentCycle?.id) {
+    setPrevCurrentId(currentCycle?.id);
+    if (currentCycle && selectedCycle.id === prevCurrentId)
+      setSelectedCycle(currentCycle);
+  }
 
-  // Persist on every change (debounced so rapid edits / note typing don't thrash localStorage)
+  // ── Persistence ────────────────────────────────────────────────────────────
+  const [saveFailed, setSaveFailed] = useState(false);
   const latest = useRef(data);
+  const dirty = useRef(false); // local edits not yet written
+  const external = useRef<AppData | null>(null); // last state received from another tab
   useLayoutEffect(() => {
     latest.current = data;
   }, [data]);
+
+  // Debounced save so rapid edits / note typing don't thrash localStorage
   useEffect(() => {
-    const id = setTimeout(() => saveToStorage(data, storageKey), 300);
+    if (data === external.current) return; // came from another tab: already stored
+    dirty.current = true;
+    const id = setTimeout(() => {
+      dirty.current = false;
+      setSaveFailed(!saveToStorage(data, storageKey));
+    }, 300);
     return () => clearTimeout(id);
   }, [data, storageKey]);
 
   // Flush any pending edit immediately when the provider unmounts (mode switch) or the tab closes
   useEffect(() => {
-    const flush = () => saveToStorage(latest.current, storageKey);
+    const flush = () => {
+      if (!dirty.current) return;
+      dirty.current = false;
+      saveToStorage(latest.current, storageKey);
+    };
     window.addEventListener("beforeunload", flush);
     return () => {
       window.removeEventListener("beforeunload", flush);
       flush();
     };
+  }, [storageKey]);
+
+  // Keep several open tabs in sync (otherwise the last tab to save wins silently)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey || e.storageArea !== localStorage) return;
+      const next = parseStored(e.newValue, storageKey);
+      external.current = next;
+      dirty.current = false;
+      setData(next);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [storageKey]);
 
   // ── Day entries ────────────────────────────────────────────────────────────
@@ -118,40 +170,43 @@ export const AttendanceProvider = ({
     [],
   );
 
-  // ── Holidays ───────────────────────────────────────────────────────────────
-  const getEffectiveHolidays = useCallback((): PublicHoliday[] => {
-    const { deletedHolidayIds, customHolidays, selectedRegion } = data;
-    const defaults = DEFAULT_HOLIDAYS.filter(
-      (h) =>
-        !deletedHolidayIds.includes(h.id) && h.regions.includes(selectedRegion),
-    );
-    const custom = customHolidays.filter(
-      (h) =>
-        !deletedHolidayIds.includes(h.id) && h.regions.includes(selectedRegion),
-    );
+  // ── Holidays (memoised: recomputed only when holiday settings change) ─────
+  const { deletedHolidayIds, customHolidays, selectedRegion } = data;
+  const effectiveHolidays = useMemo((): PublicHoliday[] => {
+    const deleted = new Set(deletedHolidayIds);
+    const visible = (h: PublicHoliday) =>
+      !deleted.has(h.id) && h.regions.includes(selectedRegion);
     // Custom overrides default on same date
     const map = new Map<string, PublicHoliday>();
-    [...defaults, ...custom].forEach((h) => map.set(h.date, h));
+    [
+      ...DEFAULT_HOLIDAYS.filter(visible),
+      ...customHolidays.filter(visible),
+    ].forEach((h) => map.set(h.date, h));
     return Array.from(map.values()).sort((a, b) =>
       a.date.localeCompare(b.date),
     );
-  }, [data]);
+  }, [deletedHolidayIds, customHolidays, selectedRegion]);
+  const getEffectiveHolidays = useCallback(
+    () => effectiveHolidays,
+    [effectiveHolidays],
+  );
 
   // All holidays (no region filter) — used by holiday management page
-  const getAllHolidaysAdmin = useCallback((): PublicHoliday[] => {
-    const { deletedHolidayIds, customHolidays } = data;
+  const allHolidays = useMemo((): PublicHoliday[] => {
+    const deleted = new Set(deletedHolidayIds);
     return [
-      ...DEFAULT_HOLIDAYS.filter((h) => !deletedHolidayIds.includes(h.id)),
+      ...DEFAULT_HOLIDAYS.filter((h) => !deleted.has(h.id)),
       ...customHolidays,
     ].sort((a, b) => a.date.localeCompare(b.date));
-  }, [data]);
+  }, [deletedHolidayIds, customHolidays]);
+  const getAllHolidaysAdmin = useCallback(() => allHolidays, [allHolidays]);
 
   const getHolidaysForCycle = useCallback(
     (cycle: Cycle): PublicHoliday[] =>
-      getEffectiveHolidays().filter(
+      effectiveHolidays.filter(
         (h) => h.date >= cycle.startDate && h.date <= cycle.endDate,
       ),
-    [getEffectiveHolidays],
+    [effectiveHolidays],
   );
 
   const addHoliday = useCallback((h: Omit<PublicHoliday, "id">) => {
@@ -204,49 +259,14 @@ export const AttendanceProvider = ({
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const getCycleStats = useCallback(
-    (cycle: Cycle): CycleStats => {
-      const days = getDaysInCycle(cycle);
-      const hDates = new Set(getHolidaysForCycle(cycle).map((h) => h.date));
-      const workDays = days.filter((d) => !isWeekend(d) && !hDates.has(d));
-
-      let wfo = 0,
-        wfh = 0,
-        sick = 0,
-        annual = 0;
-      for (const d of days) {
-        const e = data.entries[d];
-        if (!e) continue;
-        if (e.status === "wfo") wfo++;
-        else if (e.status === "wfh") wfh++;
-        else if (e.status === "sick") sick++;
-        else if (e.status === "annual") annual++;
-      }
-      const leaves = sick + annual;
-      // Quarter mode: leaves are tracked but not deducted, and expected is 50% of
-      // ALL weekdays (holidays reduce the working-days figure but not the target)
-      const weekdayCount = days.filter((d) => !isWeekend(d)).length;
-      const effective = isQuarter
-        ? weekdayCount
-        : Math.max(0, workDays.length - leaves);
-      const override = data.expectedOverride?.[cycle.id];
-      const target =
-        isQuarter && override !== undefined
-          ? override
-          : Math.ceil(effective * 0.5);
-
-      return {
-        workingDays: workDays.length,
-        wfoDays: wfo,
-        wfhDays: wfh,
-        sickDays: sick,
-        annualDays: annual,
-        totalLeaves: leaves,
-        holidayCount: getHolidaysForCycle(cycle).length,
-        effectiveWorkDays: effective,
-        targetDays: target,
-        attendedDays: wfo,
-      };
-    },
+    (cycle: Cycle): CycleStats =>
+      computeCycleStats(
+        cycle,
+        data.entries,
+        getHolidaysForCycle(cycle),
+        isQuarter,
+        data.expectedOverride?.[cycle.id],
+      ),
     [data.entries, data.expectedOverride, getHolidaysForCycle, isQuarter],
   );
 
@@ -255,20 +275,24 @@ export const AttendanceProvider = ({
       setData((p) => {
         const next = { ...(p.expectedOverride ?? {}) };
         if (value === null) delete next[cycleId];
-        else next[cycleId] = Math.max(0, Math.floor(value));
+        else next[cycleId] = Math.max(0, Math.floor(value) || 0);
         return { ...p, expectedOverride: next };
       }),
     [],
   );
 
   // ── Import / Export ────────────────────────────────────────────────────────
-  const exportData = useCallback(() => exportToJson(data, mode), [data, mode]);
+  const [lastBackup, setLastBackup] = useState(() => getLastBackup(mode));
+  const exportData = useCallback(() => {
+    exportToJson(latest.current, mode);
+    setLastBackup(getLastBackup(mode));
+  }, [mode]);
   const importData = useCallback(
     async (file: File) => {
-      const imported = await parseImportFile(file);
-      if (imported.exportedMode && imported.exportedMode !== mode) {
+      const { data: imported, exportedMode } = await parseImportFile(file);
+      if (exportedMode && exportedMode !== mode) {
         throw new Error(
-          `This backup was exported from ${imported.exportedMode} mode. Switch to ${imported.exportedMode} mode to import it.`,
+          `This backup was exported from ${exportedMode} mode. Switch to ${exportedMode} mode to import it.`,
         );
       }
       setData(imported);
@@ -276,117 +300,26 @@ export const AttendanceProvider = ({
     [mode],
   );
 
-  // ── Leave summary (all-time, from stored data) ─────────────────────────────
-  const getLeaveSummary = useCallback((): LeaveSummaryResult => {
-    const usageByYear: Record<
-      string,
-      {
-        annual: number;
-        sick: number;
-        annualTaken: number;
-        sickTaken: number;
-        annualApplied: number;
-        sickApplied: number;
-      }
-    > = {};
-    const today = todayStr();
-    for (const e of Object.values(data.entries)) {
-      if (e.status !== "annual" && e.status !== "sick") continue;
-      const year = e.date.slice(0, 4);
-      if (!usageByYear[year])
-        usageByYear[year] = {
-          annual: 0,
-          sick: 0,
-          annualTaken: 0,
-          sickTaken: 0,
-          annualApplied: 0,
-          sickApplied: 0,
-        };
-      const bucket = usageByYear[year];
-      const isFuture = e.date > today;
-      if (e.status === "annual") {
-        bucket.annual++;
-        if (isFuture) bucket.annualApplied++;
-        else bucket.annualTaken++;
-      } else {
-        bucket.sick++;
-        if (isFuture) bucket.sickApplied++;
-        else bucket.sickTaken++;
-      }
-    }
-
-    const seed = data.annualCarryForwardSeed ?? {};
-    const currentYear = String(new Date().getFullYear());
-
-    const allYearNums = [
-      ...Object.keys(usageByYear),
-      ...Object.keys(seed),
-      currentYear,
-    ].map(Number);
-    const minYear = Math.min(...allYearNums);
-    const maxYear = Math.max(...allYearNums);
-
-    const years: Record<string, YearLeaveStats> = {};
-    let runningCF = 0;
-
-    for (let y = minYear; y <= maxYear; y++) {
-      const yearStr = String(y);
-      const seeded = seed[yearStr] !== undefined;
-      const broughtForward = seeded ? seed[yearStr] : runningCF;
-
-      const usage = usageByYear[yearStr] ?? {
-        annual: 0,
-        sick: 0,
-        annualTaken: 0,
-        sickTaken: 0,
-        annualApplied: 0,
-        sickApplied: 0,
-      };
-      const totalAvailable = ANNUAL_LEAVE_QUOTA + broughtForward;
-      const annualRemaining = Math.max(0, totalAvailable - usage.annual);
-
-      const unusedFresh = Math.max(0, ANNUAL_LEAVE_QUOTA - usage.annual);
-      const carryForwardEligibleThisYear = Math.min(
-        CARRY_FORWARD_YEARLY_CAP,
-        unusedFresh,
-      );
-      const excessUsed = Math.max(0, usage.annual - ANNUAL_LEAVE_QUOTA);
-      const remainingBroughtForwardAfterUsage = Math.max(
-        0,
-        broughtForward - excessUsed,
-      );
-      const carryForwardToNextYear = Math.min(
-        CARRY_FORWARD_MAX_BALANCE,
-        carryForwardEligibleThisYear + remainingBroughtForwardAfterUsage,
-      );
-
-      years[yearStr] = {
-        year: yearStr,
-        sickUsed: usage.sick,
-        sickTaken: usage.sickTaken,
-        sickApplied: usage.sickApplied,
-        sickRemaining: Math.max(0, SICK_LEAVE_QUOTA - usage.sick),
-        annualUsed: usage.annual,
-        annualTaken: usage.annualTaken,
-        annualApplied: usage.annualApplied,
-        broughtForward,
-        totalAvailable,
-        annualRemaining,
-        carryForwardEligibleThisYear,
-        carryForwardToNextYear,
-        isSeeded: seeded,
-      };
-
-      runningCF = carryForwardToNextYear;
-    }
-
-    return { currentYear, years };
-  }, [data.entries, data.annualCarryForwardSeed]);
+  // ── Leave summary (all-time, from stored data; memoised per data change) ──
+  const leaveSummary = useMemo(
+    (): LeaveSummaryResult =>
+      computeLeaveSummary(
+        data.entries,
+        data.annualCarryForwardSeed ?? {},
+        today,
+      ),
+    [data.entries, data.annualCarryForwardSeed, today],
+  );
+  const getLeaveSummary = useCallback(() => leaveSummary, [leaveSummary]);
 
   const setCarryForwardSeed = useCallback((year: string, value: number) => {
+    const clamped = Math.min(
+      CARRY_FORWARD_MAX_BALANCE,
+      Math.max(0, Math.floor(value) || 0),
+    );
     setData((p) => ({
       ...p,
-      annualCarryForwardSeed: { ...p.annualCarryForwardSeed, [year]: value },
+      annualCarryForwardSeed: { ...p.annualCarryForwardSeed, [year]: clamped },
     }));
   }, []);
 
@@ -415,6 +348,9 @@ export const AttendanceProvider = ({
       setCarryForwardSeed,
       exportData,
       importData,
+      saveFailed,
+      lastBackup,
+      today,
     }),
     [
       mode,
@@ -438,6 +374,9 @@ export const AttendanceProvider = ({
       setCarryForwardSeed,
       exportData,
       importData,
+      saveFailed,
+      lastBackup,
+      today,
     ],
   );
 

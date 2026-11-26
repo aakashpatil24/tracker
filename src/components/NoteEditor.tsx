@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import type { ChangeEvent, KeyboardEvent, ReactNode } from "react";
 import { IndentIcon, ListBullet, ListOrdered, OutdentIcon } from "./Icons";
 import {
@@ -12,6 +12,8 @@ import {
 } from "../utils/noteFormat";
 
 type Op = (text: string, start: number, end: number) => EditResult | null;
+
+const MAX_NOTE_LENGTH = 10_000;
 
 const TOOLS: { label: string; icon: ReactNode; op: Op }[] = [
   {
@@ -51,6 +53,7 @@ const NoteEditor = ({
   className = "",
 }: Props) => {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const hintId = useId();
   const pendingSel = useRef<[number, number] | null>(null);
 
   // Restore the caret after a programmatic edit
@@ -73,7 +76,7 @@ const NoteEditor = ({
     pendingSel.current = [r.start, r.end];
     onChange(r.text);
     return true;
-  };;
+  };
 
   const runTool = (op: Op) => {
     const ta = ref.current;
@@ -84,6 +87,12 @@ const NoteEditor = ({
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
+    // Tab is used for indenting, so Escape is the keyboard way out of the editor
+    // (inside a dialog, Escape closes the dialog instead)
+    if (e.key === "Escape" && !e.currentTarget.closest("[role=dialog]")) {
+      e.currentTarget.blur();
+      return;
+    }
     const { value: t, selectionStart: s, selectionEnd: en } = e.currentTarget;
     let r: EditResult | null = null;
     if (e.key === "Tab")
@@ -101,7 +110,7 @@ const NoteEditor = ({
       e.preventDefault();
       apply(r);
     }
-  };
+  };;
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const ta = e.target;
@@ -141,11 +150,16 @@ const NoteEditor = ({
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         rows={rows}
+        maxLength={MAX_NOTE_LENGTH}
         aria-label={ariaLabel}
+        aria-describedby={hintId}
         placeholder={placeholder}
         className="flex-1 w-full bg-transparent text-zinc-100 placeholder:text-zinc-600 px-3 py-2.5
                    text-sm leading-relaxed resize-none focus:outline-none"
       />
+      <span id={hintId} className="sr-only">
+        Tab indents and Shift+Tab outdents. Press Escape to leave the editor.
+      </span>
     </div>
   );
 };

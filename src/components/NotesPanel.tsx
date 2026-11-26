@@ -174,7 +174,9 @@ const NotesPanel = ({
           </div>
         )}
         <DayNoteEditor
-          key={`${dateStr}-${editorVersion}`}
+          // remount on day switch, after the modal saved, or when data was
+          // replaced externally (import / another tab)
+          key={`${dateStr}-${editorVersion}-${data.lastModified}`}
           dateStr={dateStr}
           initial={entry?.note ?? ""}
         />

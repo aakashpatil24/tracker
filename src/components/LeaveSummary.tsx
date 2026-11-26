@@ -23,10 +23,10 @@ const LeaveSummary = () => {
   };
 
   const saveEdit = () => {
-    const value = Math.max(0, Number(draft) || 0);
-    setCarryForwardSeed(currentYear, value);
+    // clamped to 0…CARRY_FORWARD_MAX_BALANCE whole days by the provider
+    setCarryForwardSeed(currentYear, Number(draft));
     setEditing(false);
-  };
+  };;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
@@ -78,8 +78,15 @@ const LeaveSummary = () => {
                   type="number"
                   min={0}
                   max={CARRY_FORWARD_MAX_BALANCE}
+                  step={1}
+                  inputMode="numeric"
+                  aria-label="Carried-forward annual leave days"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveEdit();
+                    if (e.key === "Escape") setEditing(false);
+                  }}
                   className="w-14 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded px-1 py-0.5 text-[11px]
                              focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                   autoFocus
@@ -105,6 +112,7 @@ const LeaveSummary = () => {
                 <button
                   onClick={startEdit}
                   title="Manually set carried-forward days for this year"
+                  aria-label="Edit carried-forward days"
                   className="inline-flex items-center gap-0.5 text-amber-400 hover:underline align-middle"
                 >
                   <Pencil size={10} />

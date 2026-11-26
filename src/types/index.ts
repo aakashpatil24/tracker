@@ -35,6 +35,7 @@ export interface Cycle {
 }
 
 export interface AppData {
+  schemaVersion?: number; // see SCHEMA_VERSION in utils/storage
   entries: Record<string, DayEntry>;
   customHolidays: PublicHoliday[];
   deletedHolidayIds: string[];
@@ -42,6 +43,5 @@ export interface AppData {
   cycleAnchorDate: string; // YYYY-MM-DD  →  default: 2026-07-20
   annualCarryForwardSeed: Record<string, number>;
   expectedOverride?: Record<string, number>; // quarter mode: manual expected office days per quarter id
-  exportedMode?: AppMode; // set on export so imports can be checked against the active mode
   lastModified: string;
 }

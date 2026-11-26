@@ -1,6 +1,8 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { TrackerLogo, CalendarDays, Flag, Download, Upload } from "./Icons";
 import { useAttendance } from "../context/attendanceCore";
+import { useToast } from "../context/toastCore";
+import ConfirmDialog from "./ConfirmDialog";
 
 type Page = "dashboard" | "holidays";
 interface Props {
@@ -24,6 +26,7 @@ const NavBtn = ({
 }) => (
   <button
     onClick={() => onNavigate(page)}
+    aria-label={label}
     aria-current={current === page ? "page" : undefined}
     className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
       current === page
@@ -38,24 +41,35 @@ const NavBtn = ({
 
 const Header = ({ currentPage, onNavigate, onToggleMode }: Props) => {
   const { exportData, importData, mode } = useAttendance();
+  const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const ok = window.confirm(
-      `Importing replaces ALL current ${mode}-mode data with the contents of "${file.name}". Continue?`,
-    );
-    if (ok) {
-      try {
-        await importData(file);
-        alert("Data imported successfully.");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        alert("Import failed: " + err.message);
-      }
-    }
+    if (file) setPendingFile(file);
+    // reset so picking the same file again still fires onChange
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const confirmImport = async () => {
+    const file = pendingFile;
+    setPendingFile(null);
+    if (!file) return;
+    try {
+      await importData(file);
+      toast("Data imported successfully.", "success");
+    } catch (err) {
+      toast(
+        `Import failed: ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+    }
+  };
+
+  const handleExport = () => {
+    exportData();
+    toast("Backup downloaded.", "success");
   };
 
   return (
@@ -126,7 +140,8 @@ const Header = ({ currentPage, onNavigate, onToggleMode }: Props) => {
           </button>
 
           <button
-            onClick={exportData}
+            onClick={handleExport}
+            aria-label="Export backup"
             title="Export data as JSON backup"
             className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors"
           >
@@ -136,20 +151,32 @@ const Header = ({ currentPage, onNavigate, onToggleMode }: Props) => {
 
           <label
             title="Import data from JSON backup"
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2.5 sm:px-3 py-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer focus-within:ring-2 focus-within:ring-amber-400/60"
           >
             <Upload size={14} />
             <span className="hidden md:inline">Import</span>
             <input
               ref={fileRef}
               type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
+              accept=".json,application/json"
+              aria-label="Import backup"
+              className="sr-only"
+              onChange={handleFilePicked}
             />
           </label>
         </nav>
       </div>
+
+      {pendingFile && (
+        <ConfirmDialog
+          title="Replace all data?"
+          message={`Importing replaces ALL current ${mode}-mode data with the contents of "${pendingFile.name}". Consider exporting a backup first.`}
+          confirmLabel="Import"
+          danger
+          onConfirm={confirmImport}
+          onCancel={() => setPendingFile(null)}
+        />
+      )}
     </header>
   );
 };

@@ -21,13 +21,17 @@ const QuarterStats = () => {
 
   const save = () => {
     const v = draft.trim();
-    setExpectedOverride(selectedCycle.id, v === "" ? null : Number(v) || 0);
+    const n = Number(v);
+    setExpectedOverride(
+      selectedCycle.id,
+      v === "" || !Number.isFinite(n) ? null : n,
+    );
     setEditing(false);
   };
 
   const tiles = [
     { label: "Total Working Days", value: s.workingDays },
-    { label: "Expected from Office", value: expected },
+    { label: "Expected from Office", value: expected, editable: true },
     { label: "Actual from Office", value: actual },
     {
       label: `Leaves (${s.sickDays} sick · ${s.annualDays} annual)`,
@@ -61,15 +65,23 @@ const QuarterStats = () => {
             </p>
             <p className="text-[11px] font-medium text-zinc-500 mt-1.5 flex items-center gap-1.5">
               {t.label}
-              {t.label === "Expected from Office" &&
+              {t.editable &&
                 (editing ? (
                   <span className="inline-flex items-center gap-1">
                     <input
                       type="number"
                       min={0}
+                      max={s.effectiveWorkDays}
+                      step={1}
+                      inputMode="numeric"
+                      aria-label="Expected office days (blank for automatic)"
                       value={draft}
                       placeholder="auto"
                       onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") save();
+                        if (e.key === "Escape") setEditing(false);
+                      }}
                       className="w-14 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded px-1 py-0.5 text-[11px] focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                       autoFocus
                     />
@@ -94,6 +106,7 @@ const QuarterStats = () => {
                         setEditing(true);
                       }}
                       title="Set expected days manually (blank = 50% of all weekdays)"
+                      aria-label="Edit expected office days"
                       className="text-amber-400 hover:underline"
                     >
                       <Pencil size={10} />

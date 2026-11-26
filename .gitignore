@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+coverage
+
+# Playwright MCP / QA artefacts
+.playwright-mcp
+qa-*.png
 
 # Editor directories and files
 .vscode/*

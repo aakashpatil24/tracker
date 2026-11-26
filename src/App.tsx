@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { AttendanceProvider } from "./context/AttendanceContext";
 import Header from "./components/Header";
+import StatusBanners from "./components/StatusBanners";
 import DashboardPage from "./pages/DashboardPage";
 import type { AppMode } from "./types";
 import { loadMode, saveMode } from "./utils/storage";
@@ -26,6 +27,7 @@ const AppContent = ({
         onToggleMode={onToggleMode}
       />
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <StatusBanners />
         <div key={page} className="animate-fade-in-up">
           {page === "dashboard" ? (
             <DashboardPage />
